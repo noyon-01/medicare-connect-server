@@ -1,5 +1,5 @@
 const express = require("express");
-const router  = express.Router();
+const router = express.Router();
 const { connectToDatabase } = require("../lib/db");
 const { ObjectId } = require("mongodb");
 
@@ -9,29 +9,36 @@ const { ObjectId } = require("mongodb");
 router.get("/", async (req, res) => {
   try {
     const db = await connectToDatabase();
-    const { 
-      search = "", 
-      specialization = "", 
-      minRating = 0, 
-      maxFee = 100000, 
-      sortBy = "default", 
-      page = 1, 
-      limit = 9 
+    const {
+      search = "",
+      specialization = "",
+      minRating = 0,
+      maxFee = 100000,
+      sortBy = "default",
+      page = 1,
+      limit = 9,
     } = req.query;
 
     // ✅ Build match query for doctors (excluding rating since it's calculated)
     const matchQuery = {};
-    
+
     if (search.trim()) {
       matchQuery.$or = [
-        { doctorName:     { $regex: search.trim(), $options: "i" } },
-        { name:           { $regex: search.trim(), $options: "i" } },
+        { doctorName: { $regex: search.trim(), $options: "i" } },
+        { name: { $regex: search.trim(), $options: "i" } },
         { specialization: { $regex: search.trim(), $options: "i" } },
-        { hospitalName:   { $regex: search.trim(), $options: "i" } },
+        { hospitalName: { $regex: search.trim(), $options: "i" } },
       ];
     }
-    if (specialization && specialization !== "All Types" && specialization !== "All") {
-      matchQuery.specialization = { $regex: specialization.trim(), $options: "i" };
+    if (
+      specialization &&
+      specialization !== "All Types" &&
+      specialization !== "All"
+    ) {
+      matchQuery.specialization = {
+        $regex: specialization.trim(),
+        $options: "i",
+      };
     }
     if (Number(maxFee) < 100000) {
       matchQuery.consultationFee = { $lte: Number(maxFee) };
@@ -40,33 +47,44 @@ router.get("/", async (req, res) => {
     // ✅ Build sort
     let sort = {};
     switch (sortBy) {
-      case "fee_asc":   sort = { consultationFee: 1  }; break;
-      case "fee_desc":  sort = { consultationFee: -1 }; break;
-      case "exp_desc":  sort = { experience: -1 };      break;
-      case "name_asc":  sort = { doctorName: 1 };       break;
-      case "rating_desc": sort = { avgRating: -1 };    break;
-      default:          sort = { createdAt: -1 };
+      case "fee_asc":
+        sort = { consultationFee: 1 };
+        break;
+      case "fee_desc":
+        sort = { consultationFee: -1 };
+        break;
+      case "exp_desc":
+        sort = { experience: -1 };
+        break;
+      case "name_asc":
+        sort = { doctorName: 1 };
+        break;
+      case "rating_desc":
+        sort = { avgRating: -1 };
+        break;
+      default:
+        sort = { createdAt: -1 };
     }
 
-    const pageNum  = Math.max(1, Number(page));
+    const pageNum = Math.max(1, Number(page));
     const limitNum = Math.min(50, Math.max(1, Number(limit)));
-    const skip     = (pageNum - 1) * limitNum;
+    const skip = (pageNum - 1) * limitNum;
 
     // ✅ Get doctors with real ratings from Reviews collection
     const pipeline = [
       // Stage 1: Match doctors based on search/fee/specialization
       { $match: matchQuery },
-      
+
       // Stage 2: Lookup reviews
       {
         $lookup: {
           from: "Reviews",
           localField: "_id",
           foreignField: "doctorId",
-          as: "reviewData"
-        }
+          as: "reviewData",
+        },
       },
-      
+
       // Stage 3: Calculate average rating and review count
       {
         $addFields: {
@@ -75,8 +93,8 @@ router.get("/", async (req, res) => {
             $cond: [
               { $gt: [{ $size: "$reviewData" }, 0] },
               { $round: [{ $avg: "$reviewData.rating" }, 1] },
-              0
-            ]
+              0,
+            ],
           },
           patientCount: {
             $size: {
@@ -87,35 +105,39 @@ router.get("/", async (req, res) => {
                   $cond: [
                     { $in: ["$$this.patientEmail", "$$value"] },
                     "$$value",
-                    { $concatArrays: ["$$value", ["$$this.patientEmail"]] }
-                  ]
-                }
-              }
-            }
-          }
-        }
+                    { $concatArrays: ["$$value", ["$$this.patientEmail"]] },
+                  ],
+                },
+              },
+            },
+          },
+        },
       },
-      
+
       // Stage 4: Filter by minRating (after calculation)
-      ...(Number(minRating) > 0 ? [{
-        $match: {
-          avgRating: { $gte: Number(minRating) }
-        }
-      }] : []),
-      
+      ...(Number(minRating) > 0
+        ? [
+            {
+              $match: {
+                avgRating: { $gte: Number(minRating) },
+              },
+            },
+          ]
+        : []),
+
       // Stage 5: Remove reviewData from output
       {
         $project: {
-          reviewData: 0
-        }
+          reviewData: 0,
+        },
       },
-      
+
       // Stage 6: Sort
       { $sort: sort },
-      
+
       // Stage 7: Pagination
       { $skip: skip },
-      { $limit: limitNum }
+      { $limit: limitNum },
     ];
 
     // ✅ Get total count with same filters (for pagination)
@@ -126,8 +148,8 @@ router.get("/", async (req, res) => {
           from: "Reviews",
           localField: "_id",
           foreignField: "doctorId",
-          as: "reviewData"
-        }
+          as: "reviewData",
+        },
       },
       {
         $addFields: {
@@ -135,37 +157,43 @@ router.get("/", async (req, res) => {
             $cond: [
               { $gt: [{ $size: "$reviewData" }, 0] },
               { $round: [{ $avg: "$reviewData.rating" }, 1] },
-              0
-            ]
-          }
-        }
+              0,
+            ],
+          },
+        },
       },
-      ...(Number(minRating) > 0 ? [{
-        $match: {
-          avgRating: { $gte: Number(minRating) }
-        }
-      }] : []),
-      { $count: "total" }
+      ...(Number(minRating) > 0
+        ? [
+            {
+              $match: {
+                avgRating: { $gte: Number(minRating) },
+              },
+            },
+          ]
+        : []),
+      { $count: "total" },
     ];
 
     const [doctors, totalResult] = await Promise.all([
       db.collection("Doctor").aggregate(pipeline).toArray(),
-      db.collection("Doctor").aggregate(countPipeline).toArray()
+      db.collection("Doctor").aggregate(countPipeline).toArray(),
     ]);
 
     const total = totalResult[0]?.total || 0;
 
-    res.status(200).json({ 
-      success: true, 
-      doctors, 
-      total, 
-      page: pageNum, 
-      totalPages: Math.ceil(total / limitNum), 
-      limit: limitNum 
+    res.status(200).json({
+      success: true,
+      doctors,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum),
+      limit: limitNum,
     });
   } catch (error) {
     console.error("Doctor list error:", error);
-    res.status(500).json({ success: false, message: "Failed to load doctors." });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to load doctors." });
   }
 });
 
@@ -177,64 +205,67 @@ router.get("/top-rated", async (req, res) => {
     const db = await connectToDatabase();
     const limitNum = Math.min(10, Math.max(1, Number(req.query.limit) || 6));
 
-    const doctors = await db.collection("Doctor").aggregate([
-      { $match: { verificationStatus: "verified" } },
-      {
-        $lookup: {
-          from: "Reviews",
-          localField: "_id",
-          foreignField: "doctorId",
-          as: "reviewData"
-        }
-      },
-      {
-        $addFields: {
-          reviewCount: { $size: "$reviewData" },
-          avgRating: {
-            $cond: [
-              { $gt: [{ $size: "$reviewData" }, 0] },
-              { $round: [{ $avg: "$reviewData.rating" }, 1] },
-              0
-            ]
+    const doctors = await db
+      .collection("Doctor")
+      .aggregate([
+        { $match: { verificationStatus: "verified" } },
+        {
+          $lookup: {
+            from: "Reviews",
+            localField: "_id",
+            foreignField: "doctorId",
+            as: "reviewData",
           },
-          patientCount: {
-            $size: {
-              $reduce: {
-                input: "$reviewData",
-                initialValue: [],
-                in: {
-                  $cond: [
-                    { $in: ["$$this.patientEmail", "$$value"] },
-                    "$$value",
-                    { $concatArrays: ["$$value", ["$$this.patientEmail"]] }
-                  ]
-                }
-              }
-            }
-          }
-        }
-      },
-      {
-        $project: {
-          reviewData: 0
-        }
-      },
-      { $sort: { avgRating: -1, reviewCount: -1 } },
-      { $limit: limitNum }
-    ]).toArray();
+        },
+        {
+          $addFields: {
+            reviewCount: { $size: "$reviewData" },
+            avgRating: {
+              $cond: [
+                { $gt: [{ $size: "$reviewData" }, 0] },
+                { $round: [{ $avg: "$reviewData.rating" }, 1] },
+                0,
+              ],
+            },
+            patientCount: {
+              $size: {
+                $reduce: {
+                  input: "$reviewData",
+                  initialValue: [],
+                  in: {
+                    $cond: [
+                      { $in: ["$$this.patientEmail", "$$value"] },
+                      "$$value",
+                      { $concatArrays: ["$$value", ["$$this.patientEmail"]] },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            reviewData: 0,
+          },
+        },
+        { $sort: { avgRating: -1, reviewCount: -1 } },
+        { $limit: limitNum },
+      ])
+      .toArray();
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       doctors: doctors || [],
-      count: doctors?.length || 0
+      count: doctors?.length || 0,
     });
   } catch (error) {
     console.error("Top rated doctors error:", error);
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       doctors: [],
       count: 0,
-      message: "No top rated doctors available yet"
+      message: "No top rated doctors available yet",
     });
   }
 });
@@ -244,11 +275,15 @@ router.get("/top-rated", async (req, res) => {
 // =========================================================================
 router.get("/specializations", async (req, res) => {
   try {
-    const db    = await connectToDatabase();
+    const db = await connectToDatabase();
     const specs = await db.collection("Doctor").distinct("specialization");
-    res.status(200).json({ success: true, specializations: specs.filter(Boolean).sort() });
+    res
+      .status(200)
+      .json({ success: true, specializations: specs.filter(Boolean).sort() });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Failed to load specializations." });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to load specializations." });
   }
 });
 
@@ -257,14 +292,19 @@ router.get("/specializations", async (req, res) => {
 // =========================================================================
 router.get("/dashboard-stats/:email", async (req, res) => {
   try {
-    const db          = await connectToDatabase();
+    const db = await connectToDatabase();
     const doctorEmail = req.params.email.trim().toLowerCase();
 
-    const doctor = await db.collection("Doctor").findOne({ email: doctorEmail });
-    if (!doctor) return res.status(404).json({ success: false, message: "Doctor not found." });
+    const doctor = await db
+      .collection("Doctor")
+      .findOne({ email: doctorEmail });
+    if (!doctor)
+      return res
+        .status(404)
+        .json({ success: false, message: "Doctor not found." });
 
     const doctorOid = doctor._id;
-    const today     = new Date().toISOString().split("T")[0];
+    const today = new Date().toISOString().split("T")[0];
 
     const [
       totalAppointments,
@@ -275,24 +315,44 @@ router.get("/dashboard-stats/:email", async (req, res) => {
       totalPatients,
       totalReviews,
       recentAppointments,
-      avgRatingResult
+      avgRatingResult,
     ] = await Promise.all([
       db.collection("Appointments").countDocuments({ doctorId: doctorOid }),
-      db.collection("Appointments").countDocuments({ doctorId: doctorOid, appointmentStatus: "pending" }),
-      db.collection("Appointments").countDocuments({ doctorId: doctorOid, appointmentStatus: "confirmed" }),
-      db.collection("Appointments").countDocuments({ doctorId: doctorOid, appointmentStatus: "completed" }),
-      db.collection("Appointments").countDocuments({ doctorId: doctorOid, appointmentDate: today }),
-      db.collection("Appointments").distinct("patientId", { doctorId: doctorOid }),
+      db
+        .collection("Appointments")
+        .countDocuments({ doctorId: doctorOid, appointmentStatus: "pending" }),
+      db
+        .collection("Appointments")
+        .countDocuments({
+          doctorId: doctorOid,
+          appointmentStatus: "confirmed",
+        }),
+      db
+        .collection("Appointments")
+        .countDocuments({
+          doctorId: doctorOid,
+          appointmentStatus: "completed",
+        }),
+      db
+        .collection("Appointments")
+        .countDocuments({ doctorId: doctorOid, appointmentDate: today }),
+      db
+        .collection("Appointments")
+        .distinct("patientId", { doctorId: doctorOid }),
       db.collection("Reviews").countDocuments({ doctorId: doctorOid }),
-      db.collection("Appointments")
+      db
+        .collection("Appointments")
         .find({ doctorId: doctorOid })
         .sort({ createdAt: -1 })
         .limit(5)
         .toArray(),
-      db.collection("Reviews").aggregate([
-        { $match: { doctorId: doctorOid } },
-        { $group: { _id: null, avg: { $avg: { $toDouble: "$rating" } } } }
-      ]).toArray()
+      db
+        .collection("Reviews")
+        .aggregate([
+          { $match: { doctorId: doctorOid } },
+          { $group: { _id: null, avg: { $avg: { $toDouble: "$rating" } } } },
+        ])
+        .toArray(),
     ]);
 
     res.status(200).json({
@@ -303,15 +363,19 @@ router.get("/dashboard-stats/:email", async (req, res) => {
         confirmedAppointments,
         completedAppointments,
         todayAppointments,
-        totalPatients:  totalPatients.filter(Boolean).length,
+        totalPatients: totalPatients.filter(Boolean).length,
         totalReviews,
-        avgRating:      avgRatingResult[0]?.avg ? Number(avgRatingResult[0].avg.toFixed(1)) : 0,
+        avgRating: avgRatingResult[0]?.avg
+          ? Number(avgRatingResult[0].avg.toFixed(1))
+          : 0,
       },
-      recentAppointments
+      recentAppointments,
     });
   } catch (error) {
     console.error("Dashboard stats failed:", error);
-    res.status(500).json({ success: false, message: "Failed to load dashboard stats." });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to load dashboard stats." });
   }
 });
 
@@ -320,18 +384,26 @@ router.get("/dashboard-stats/:email", async (req, res) => {
 // =========================================================================
 router.get("/appointments/:email", async (req, res) => {
   try {
-    const db     = await connectToDatabase();
-    const doctor = await db.collection("Doctor").findOne({ email: req.params.email.trim().toLowerCase() });
-    if (!doctor) return res.status(404).json({ success: false, message: "Doctor not found." });
+    const db = await connectToDatabase();
+    const doctor = await db
+      .collection("Doctor")
+      .findOne({ email: req.params.email.trim().toLowerCase() });
+    if (!doctor)
+      return res
+        .status(404)
+        .json({ success: false, message: "Doctor not found." });
 
-    const appointments = await db.collection("Appointments")
+    const appointments = await db
+      .collection("Appointments")
       .find({ doctorId: doctor._id })
       .sort({ createdAt: -1 })
       .toArray();
 
     res.status(200).json({ success: true, appointments });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Failed to fetch appointments." });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch appointments." });
   }
 });
 
@@ -344,42 +416,42 @@ router.patch("/appointments/:id/accept", async (req, res) => {
     const appointmentId = req.params.id;
 
     const existingAppointment = await db.collection("Appointments").findOne({
-      _id: new ObjectId(appointmentId)
+      _id: new ObjectId(appointmentId),
     });
 
     if (!existingAppointment) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Appointment not found." 
+      return res.status(404).json({
+        success: false,
+        message: "Appointment not found.",
       });
     }
 
     if (existingAppointment.appointmentStatus !== "pending") {
-      return res.status(400).json({ 
-        success: false, 
-        message: `Cannot accept appointment with status: ${existingAppointment.appointmentStatus}` 
+      return res.status(400).json({
+        success: false,
+        message: `Cannot accept appointment with status: ${existingAppointment.appointmentStatus}`,
       });
     }
 
     await db.collection("Appointments").updateOne(
       { _id: new ObjectId(appointmentId) },
-      { 
-        $set: { 
-          appointmentStatus: "confirmed", 
+      {
+        $set: {
+          appointmentStatus: "confirmed",
           confirmedAt: new Date(),
-          updatedAt: new Date() 
-        } 
-      }
+          updatedAt: new Date(),
+        },
+      },
     );
 
     const updatedAppointment = await db.collection("Appointments").findOne({
-      _id: new ObjectId(appointmentId)
+      _id: new ObjectId(appointmentId),
     });
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       message: "Appointment confirmed.",
-      appointment: updatedAppointment
+      appointment: updatedAppointment,
     });
   } catch (error) {
     console.error("Accept error:", error);
@@ -396,37 +468,37 @@ router.patch("/appointments/:id/reject", async (req, res) => {
     const appointmentId = req.params.id;
 
     const existingAppointment = await db.collection("Appointments").findOne({
-      _id: new ObjectId(appointmentId)
+      _id: new ObjectId(appointmentId),
     });
 
     if (!existingAppointment) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Appointment not found." 
+      return res.status(404).json({
+        success: false,
+        message: "Appointment not found.",
       });
     }
 
     if (existingAppointment.appointmentStatus !== "pending") {
-      return res.status(400).json({ 
-        success: false, 
-        message: `Cannot reject appointment with status: ${existingAppointment.appointmentStatus}` 
+      return res.status(400).json({
+        success: false,
+        message: `Cannot reject appointment with status: ${existingAppointment.appointmentStatus}`,
       });
     }
 
     await db.collection("Appointments").updateOne(
       { _id: new ObjectId(appointmentId) },
-      { 
-        $set: { 
-          appointmentStatus: "rejected", 
+      {
+        $set: {
+          appointmentStatus: "rejected",
           rejectedAt: new Date(),
-          updatedAt: new Date() 
-        } 
-      }
+          updatedAt: new Date(),
+        },
+      },
     );
 
-    res.status(200).json({ 
-      success: true, 
-      message: "Appointment rejected." 
+    res.status(200).json({
+      success: true,
+      message: "Appointment rejected.",
     });
   } catch (error) {
     console.error("Reject error:", error);
@@ -440,30 +512,56 @@ router.patch("/appointments/:id/reject", async (req, res) => {
 router.post("/prescriptions", async (req, res) => {
   try {
     const db = await connectToDatabase();
-    const { doctorId, patientId, appointmentId, diagnosis, medications, notes } = req.body;
+    const {
+      doctorId,
+      patientId,
+      appointmentId,
+      diagnosis,
+      medications,
+      notes,
+    } = req.body;
 
     if (!doctorId || !appointmentId || !diagnosis)
-      return res.status(400).json({ success: false, message: "doctorId, appointmentId and diagnosis are required." });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "doctorId, appointmentId and diagnosis are required.",
+        });
 
     const result = await db.collection("Prescriptions").insertOne({
-      doctorId:      new ObjectId(doctorId),
-      patientId:     patientId ? new ObjectId(patientId) : null,
+      doctorId: new ObjectId(doctorId),
+      patientId: patientId ? new ObjectId(patientId) : null,
       appointmentId: new ObjectId(appointmentId),
       diagnosis,
-      medications:   medications || "",
-      notes:         notes       || "",
-      createdAt:     new Date()
+      medications: medications || "",
+      notes: notes || "",
+      createdAt: new Date(),
     });
 
-    await db.collection("Appointments").updateOne(
-      { _id: new ObjectId(appointmentId) },
-      { $set: { appointmentStatus: "completed", completedAt: new Date(), updatedAt: new Date() } }
-    );
+    await db
+      .collection("Appointments")
+      .updateOne(
+        { _id: new ObjectId(appointmentId) },
+        {
+          $set: {
+            appointmentStatus: "completed",
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+      );
 
     res.status(201).json({ success: true, prescriptionId: result.insertedId });
   } catch (error) {
     console.error("Prescription save failed:", error);
-    res.status(500).json({ success: false, message: "Failed to save prescription.", error: error.message });
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Failed to save prescription.",
+        error: error.message,
+      });
   }
 });
 
@@ -473,13 +571,16 @@ router.post("/prescriptions", async (req, res) => {
 router.get("/prescriptions/:doctorId", async (req, res) => {
   try {
     const db = await connectToDatabase();
-    const prescriptions = await db.collection("Prescriptions")
+    const prescriptions = await db
+      .collection("Prescriptions")
       .find({ doctorId: new ObjectId(req.params.doctorId) })
       .sort({ createdAt: -1 })
       .toArray();
     res.status(200).json({ success: true, prescriptions });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Failed to fetch prescriptions." });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch prescriptions." });
   }
 });
 
@@ -489,43 +590,89 @@ router.get("/prescriptions/:doctorId", async (req, res) => {
 router.post("/profile", async (req, res) => {
   try {
     const db = await connectToDatabase();
-    const { email, doctorName, specialization, hospitalName, degrees, qualifications, experience, consultationFee, availableSlots, image, profileImage } = req.body;
-    if (!email) return res.status(400).json({ success: false, message: "Email is required." });
+    const {
+      email,
+      doctorName,
+      specialization,
+      hospitalName,
+      degrees,
+      qualifications,
+      experience,
+      consultationFee,
+      availableSlots,
+      image,
+      profileImage,
+    } = req.body;
+    if (!email)
+      return res
+        .status(400)
+        .json({ success: false, message: "Email is required." });
 
     const normalizedEmail = email.trim().toLowerCase();
-    const existingApproved = await db.collection("Doctor").findOne({ email: normalizedEmail });
-    if (existingApproved) return res.status(409).json({ success: false, message: "Already an approved practitioner." });
+    const existingApproved = await db
+      .collection("Doctor")
+      .findOne({ email: normalizedEmail });
+    if (existingApproved)
+      return res
+        .status(409)
+        .json({ success: false, message: "Already an approved practitioner." });
 
-    const existingApp = await db.collection("DoctorApplications").findOne({ email: normalizedEmail });
+    const existingApp = await db
+      .collection("DoctorApplications")
+      .findOne({ email: normalizedEmail });
     if (existingApp && existingApp.verificationStatus === "pending")
-      return res.status(409).json({ success: false, message: "Pending application already under review." });
+      return res
+        .status(409)
+        .json({
+          success: false,
+          message: "Pending application already under review.",
+        });
 
-    const processedSlots = Array.isArray(availableSlots) ? availableSlots : availableSlots ? [availableSlots] : ["9:00 AM", "11:00 AM", "4:00 PM"];
+    const processedSlots = Array.isArray(availableSlots)
+      ? availableSlots
+      : availableSlots
+        ? [availableSlots]
+        : ["9:00 AM", "11:00 AM", "4:00 PM"];
 
     const result = await db.collection("DoctorApplications").updateOne(
       { email: normalizedEmail },
       {
         $set: {
           email: normalizedEmail,
-          doctorName:       doctorName    || "New Specialist",
-          specialization:   specialization || "General Medicine",
-          hospitalName:     hospitalName   || "General Practice Hospital",
-          degrees:          degrees || qualifications || "MBBS",
-          experience:       Number(experience)      || 0,
-          consultationFee:  Number(consultationFee) || 0,
-          availableSlots:   processedSlots,
-          image:            image || profileImage || "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150",
+          doctorName: doctorName || "New Specialist",
+          specialization: specialization || "General Medicine",
+          hospitalName: hospitalName || "General Practice Hospital",
+          degrees: degrees || qualifications || "MBBS",
+          experience: Number(experience) || 0,
+          consultationFee: Number(consultationFee) || 0,
+          availableSlots: processedSlots,
+          image:
+            image ||
+            profileImage ||
+            "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150",
           verificationStatus: "pending",
-          updatedAt:        new Date()
+          updatedAt: new Date(),
         },
-        $setOnInsert: { createdAt: new Date() }
+        $setOnInsert: { createdAt: new Date() },
       },
-      { upsert: true }
+      { upsert: true },
     );
 
-    res.status(200).json({ success: true, message: "Profile submitted for admin review.", result });
+    res
+      .status(200)
+      .json({
+        success: true,
+        message: "Profile submitted for admin review.",
+        result,
+      });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Submission failed.", error: error.message });
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Submission failed.",
+        error: error.message,
+      });
   }
 });
 
@@ -534,15 +681,33 @@ router.post("/profile", async (req, res) => {
 // =========================================================================
 router.get("/profile/:email", async (req, res) => {
   try {
-    const db          = await connectToDatabase();
+    const db = await connectToDatabase();
     const targetEmail = req.params.email.trim().toLowerCase();
-    const approved    = await db.collection("Doctor").findOne({ email: targetEmail });
-    if (approved) return res.status(200).json({ success: true, profile: approved, status: "approved" });
-    const application = await db.collection("DoctorApplications").findOne({ email: targetEmail });
-    if (application) return res.status(200).json({ success: true, profile: application, status: application.verificationStatus || "pending" });
-    return res.status(404).json({ success: false, message: "No profile registered yet." });
+    const approved = await db
+      .collection("Doctor")
+      .findOne({ email: targetEmail });
+    if (approved)
+      return res
+        .status(200)
+        .json({ success: true, profile: approved, status: "approved" });
+    const application = await db
+      .collection("DoctorApplications")
+      .findOne({ email: targetEmail });
+    if (application)
+      return res
+        .status(200)
+        .json({
+          success: true,
+          profile: application,
+          status: application.verificationStatus || "pending",
+        });
+    return res
+      .status(404)
+      .json({ success: false, message: "No profile registered yet." });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Error looking up doctor profile." });
+    res
+      .status(500)
+      .json({ success: false, message: "Error looking up doctor profile." });
   }
 });
 
@@ -555,67 +720,73 @@ router.get("/reviews/featured", async (req, res) => {
     const limitNum = Math.min(20, Math.max(1, Number(req.query.limit) || 6));
     const minRatingNum = Number(req.query.minRating) || 4;
 
-    const reviews = await db.collection("Reviews").aggregate([
-      {
-        $match: {
-          rating: { $gte: minRatingNum },
-          reviewText: { $exists: true, $ne: "" }
-        }
-      },
-      { $sort: { rating: -1, createdAt: -1 } },
-      { $limit: limitNum },
-      {
-        $lookup: {
-          from: "Doctor",
-          localField: "doctorId",
-          foreignField: "_id",
-          as: "doctorInfo"
-        }
-      },
-      {
-        $lookup: {
-          from: "Appointments",
-          localField: "appointmentId",
-          foreignField: "_id",
-          as: "appointmentInfo"
-        }
-      },
-      {
-        $addFields: {
-          doctorInfo: { $arrayElemAt: ["$doctorInfo", 0] },
-          appointmentInfo: { $arrayElemAt: ["$appointmentInfo", 0] }
-        }
-      },
-      {
-        $project: {
-          _id: 1,
-          rating: 1,
-          reviewText: 1,
-          createdAt: 1,
-          patientEmail: 1,
-          patientName: {
-            $ifNull: ["$appointmentInfo.patientName", "$appointmentInfo.name", "Anonymous Patient"]
+    const reviews = await db
+      .collection("Reviews")
+      .aggregate([
+        {
+          $match: {
+            rating: { $gte: minRatingNum },
+            reviewText: { $exists: true, $ne: "" },
           },
-          doctorName: "$doctorInfo.doctorName",
-          specialization: "$doctorInfo.specialization",
-          doctorImage: "$doctorInfo.image"
-        }
-      }
-    ]).toArray();
+        },
+        { $sort: { rating: -1, createdAt: -1 } },
+        { $limit: limitNum },
+        {
+          $lookup: {
+            from: "Doctor",
+            localField: "doctorId",
+            foreignField: "_id",
+            as: "doctorInfo",
+          },
+        },
+        {
+          $lookup: {
+            from: "Appointments",
+            localField: "appointmentId",
+            foreignField: "_id",
+            as: "appointmentInfo",
+          },
+        },
+        {
+          $addFields: {
+            doctorInfo: { $arrayElemAt: ["$doctorInfo", 0] },
+            appointmentInfo: { $arrayElemAt: ["$appointmentInfo", 0] },
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            rating: 1,
+            reviewText: 1,
+            createdAt: 1,
+            patientEmail: 1,
+            patientName: {
+              $ifNull: [
+                "$appointmentInfo.patientName",
+                "$appointmentInfo.name",
+                "Anonymous Patient",
+              ],
+            },
+            doctorName: "$doctorInfo.doctorName",
+            specialization: "$doctorInfo.specialization",
+            doctorImage: "$doctorInfo.image",
+          },
+        },
+      ])
+      .toArray();
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       reviews: reviews || [],
-      count: reviews?.length || 0
+      count: reviews?.length || 0,
     });
-
   } catch (error) {
     console.error("Failed to fetch featured reviews:", error);
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       reviews: [],
       count: 0,
-      message: "No reviews available yet"
+      message: "No reviews available yet",
     });
   }
 });
@@ -629,82 +800,91 @@ router.get("/reviews/:doctorEmail", async (req, res) => {
     const doctorEmail = req.params.doctorEmail.toLowerCase();
 
     // ✅ Verify doctor exists
-    const doctor = await db.collection("Doctor").findOne({ 
-      email: doctorEmail 
+    const doctor = await db.collection("Doctor").findOne({
+      email: doctorEmail,
     });
 
     if (!doctor) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Doctor not found." 
+      return res.status(404).json({
+        success: false,
+        message: "Doctor not found.",
       });
     }
 
     // ✅ Get ONLY this doctor's reviews with patient info
-    const reviews = await db.collection("Reviews").aggregate([
-      {
-        $match: { 
-          doctorId: doctor._id 
-        }
-      },
-      {
-        $lookup: {
-          from: "Appointments",
-          localField: "appointmentId",
-          foreignField: "_id",
-          as: "appointmentInfo"
-        }
-      },
-      {
-        $addFields: {
-          appointmentInfo: { $arrayElemAt: ["$appointmentInfo", 0] }
-        }
-      },
-      {
-        $project: {
-          _id: 1,
-          rating: 1,
-          reviewText: 1,
-          createdAt: 1,
-          patientName: 1,
-          patientEmail: 1,
-          doctorId: 1,
-          appointmentId: 1,
-          // ✅ Include appointment details
-          appointmentDate: "$appointmentInfo.appointmentDate",
-          appointmentTime: "$appointmentInfo.appointmentTime",
-          patientName: {
-            $ifNull: ["$patientName", "$appointmentInfo.patientName", "Anonymous Patient"]
-          }
-        }
-      },
-      { $sort: { createdAt: -1 } }
-    ]).toArray();
+    const reviews = await db
+      .collection("Reviews")
+      .aggregate([
+        {
+          $match: {
+            doctorId: doctor._id,
+          },
+        },
+        {
+          $lookup: {
+            from: "Appointments",
+            localField: "appointmentId",
+            foreignField: "_id",
+            as: "appointmentInfo",
+          },
+        },
+        {
+          $addFields: {
+            appointmentInfo: { $arrayElemAt: ["$appointmentInfo", 0] },
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            rating: 1,
+            reviewText: 1,
+            createdAt: 1,
+            patientName: 1,
+            patientEmail: 1,
+            doctorId: 1,
+            appointmentId: 1,
+            // ✅ Include appointment details
+            appointmentDate: "$appointmentInfo.appointmentDate",
+            appointmentTime: "$appointmentInfo.appointmentTime",
+            patientName: {
+              $ifNull: [
+                "$patientName",
+                "$appointmentInfo.patientName",
+                "Anonymous Patient",
+              ],
+            },
+          },
+        },
+        { $sort: { createdAt: -1 } },
+      ])
+      .toArray();
 
     // ✅ Calculate average rating for this doctor
-    const avgRatingResult = await db.collection("Reviews").aggregate([
-      { $match: { doctorId: doctor._id } },
-      { $group: { _id: null, avg: { $avg: "$rating" } } }
-    ]).toArray();
+    const avgRatingResult = await db
+      .collection("Reviews")
+      .aggregate([
+        { $match: { doctorId: doctor._id } },
+        { $group: { _id: null, avg: { $avg: "$rating" } } },
+      ])
+      .toArray();
 
-    const avgRating = avgRatingResult[0]?.avg 
-      ? parseFloat(avgRatingResult[0].avg.toFixed(1)) 
+    const avgRating = avgRatingResult[0]?.avg
+      ? parseFloat(avgRatingResult[0].avg.toFixed(1))
       : 0;
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       reviews: reviews || [],
       avgRating,
       totalReviews: reviews.length,
       doctorName: doctor.doctorName,
-      specialization: doctor.specialization
+      specialization: doctor.specialization,
     });
-
   } catch (error) {
     console.error("Fetch doctor reviews error:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to fetch reviews." 
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch reviews.",
     });
   }
 });
@@ -718,15 +898,19 @@ router.post("/schedule", async (req, res) => {
     const { doctorEmail, dayOfWeek, startTime, endTime } = req.body;
 
     if (!doctorEmail || !dayOfWeek || !startTime || !endTime) {
-      return res.status(400).json({ success: false, message: "Missing required fields." });
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing required fields." });
     }
 
-    const doctor = await db.collection("Doctor").findOne({ 
-      email: doctorEmail.toLowerCase() 
+    const doctor = await db.collection("Doctor").findOne({
+      email: doctorEmail.toLowerCase(),
     });
-    
+
     if (!doctor) {
-      return res.status(404).json({ success: false, message: "Doctor not found." });
+      return res
+        .status(404)
+        .json({ success: false, message: "Doctor not found." });
     }
 
     // Check for duplicate
@@ -735,13 +919,13 @@ router.post("/schedule", async (req, res) => {
       dayOfWeek,
       startTime,
       endTime,
-      isActive: true
+      isActive: true,
     });
 
     if (existing) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "This time slot already exists for this day" 
+      return res.status(400).json({
+        success: false,
+        message: "This time slot already exists for this day",
       });
     }
 
@@ -753,29 +937,33 @@ router.post("/schedule", async (req, res) => {
       endTime,
       isActive: true,
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     });
 
     // Update doctor's availableSlots
-    const schedules = await db.collection("DoctorSchedule")
+    const schedules = await db
+      .collection("DoctorSchedule")
       .find({ doctorId: doctor._id, isActive: true })
       .toArray();
 
-    const availableSlots = schedules.map(s => `${s.dayOfWeek}: ${s.startTime} - ${s.endTime}`);
-    
-    await db.collection("Doctor").updateOne(
-      { _id: doctor._id },
-      { $set: { availableSlots } }
+    const availableSlots = schedules.map(
+      (s) => `${s.dayOfWeek}: ${s.startTime} - ${s.endTime}`,
     );
 
-    res.status(201).json({ 
-      success: true, 
+    await db
+      .collection("Doctor")
+      .updateOne({ _id: doctor._id }, { $set: { availableSlots } });
+
+    res.status(201).json({
+      success: true,
       scheduleId: result.insertedId,
-      availableSlots 
+      availableSlots,
     });
   } catch (error) {
     console.error("Schedule creation failed:", error);
-    res.status(500).json({ success: false, message: "Failed to create schedule." });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to create schedule." });
   }
 });
 
@@ -786,13 +974,18 @@ router.get("/schedule/:doctorEmail", async (req, res) => {
   try {
     const db = await connectToDatabase();
     const doctorEmail = req.params.doctorEmail.toLowerCase();
-    
-    const doctor = await db.collection("Doctor").findOne({ email: doctorEmail });
+
+    const doctor = await db
+      .collection("Doctor")
+      .findOne({ email: doctorEmail });
     if (!doctor) {
-      return res.status(404).json({ success: false, message: "Doctor not found." });
+      return res
+        .status(404)
+        .json({ success: false, message: "Doctor not found." });
     }
 
-    const schedules = await db.collection("DoctorSchedule")
+    const schedules = await db
+      .collection("DoctorSchedule")
       .find({ doctorId: doctor._id })
       .sort({ dayOfWeek: 1, startTime: 1 })
       .toArray();
@@ -800,7 +993,9 @@ router.get("/schedule/:doctorEmail", async (req, res) => {
     res.status(200).json({ success: true, schedules });
   } catch (error) {
     console.error("Failed to fetch schedules:", error);
-    res.status(500).json({ success: false, message: "Failed to fetch schedules." });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch schedules." });
   }
 });
 
@@ -820,42 +1015,51 @@ router.patch("/schedule/:scheduleId", async (req, res) => {
     if (isActive !== undefined) updateData.isActive = isActive;
     updateData.updatedAt = new Date();
 
-    const result = await db.collection("DoctorSchedule").updateOne(
-      { _id: new ObjectId(scheduleId) },
-      { $set: updateData }
-    );
+    const result = await db
+      .collection("DoctorSchedule")
+      .updateOne({ _id: new ObjectId(scheduleId) }, { $set: updateData });
 
     if (result.matchedCount === 0) {
-      return res.status(404).json({ success: false, message: "Schedule not found." });
+      return res
+        .status(404)
+        .json({ success: false, message: "Schedule not found." });
     }
 
     // Update doctor's availableSlots
-    const updatedSchedule = await db.collection("DoctorSchedule").findOne({ 
-      _id: new ObjectId(scheduleId) 
+    const updatedSchedule = await db.collection("DoctorSchedule").findOne({
+      _id: new ObjectId(scheduleId),
     });
-    
+
     if (updatedSchedule) {
-      const schedules = await db.collection("DoctorSchedule")
+      const schedules = await db
+        .collection("DoctorSchedule")
         .find({ doctorId: updatedSchedule.doctorId, isActive: true })
         .toArray();
 
-      const availableSlots = schedules.map(s => `${s.dayOfWeek}: ${s.startTime} - ${s.endTime}`);
-      
-      await db.collection("Doctor").updateOne(
-        { _id: updatedSchedule.doctorId },
-        { $set: { availableSlots } }
+      const availableSlots = schedules.map(
+        (s) => `${s.dayOfWeek}: ${s.startTime} - ${s.endTime}`,
       );
+
+      await db
+        .collection("Doctor")
+        .updateOne(
+          { _id: updatedSchedule.doctorId },
+          { $set: { availableSlots } },
+        );
     }
 
-    res.status(200).json({ 
-      success: true, 
-      message: isActive !== undefined 
-        ? `Schedule ${isActive ? 'enabled' : 'disabled'}` 
-        : "Schedule updated"
+    res.status(200).json({
+      success: true,
+      message:
+        isActive !== undefined
+          ? `Schedule ${isActive ? "enabled" : "disabled"}`
+          : "Schedule updated",
     });
   } catch (error) {
     console.error("Update failed:", error);
-    res.status(500).json({ success: false, message: "Failed to update schedule." });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to update schedule." });
   }
 });
 
@@ -867,41 +1071,49 @@ router.delete("/schedule/:scheduleId", async (req, res) => {
     const db = await connectToDatabase();
     const scheduleId = req.params.scheduleId;
 
-    const schedule = await db.collection("DoctorSchedule").findOne({ 
-      _id: new ObjectId(scheduleId) 
+    const schedule = await db.collection("DoctorSchedule").findOne({
+      _id: new ObjectId(scheduleId),
     });
-    
+
     if (!schedule) {
-      return res.status(404).json({ success: false, message: "Schedule not found." });
+      return res
+        .status(404)
+        .json({ success: false, message: "Schedule not found." });
     }
 
     const result = await db.collection("DoctorSchedule").deleteOne({
-      _id: new ObjectId(scheduleId)
+      _id: new ObjectId(scheduleId),
     });
 
     if (result.deletedCount === 0) {
-      return res.status(404).json({ success: false, message: "Schedule not found." });
+      return res
+        .status(404)
+        .json({ success: false, message: "Schedule not found." });
     }
 
     // Update doctor's availableSlots
-    const schedules = await db.collection("DoctorSchedule")
+    const schedules = await db
+      .collection("DoctorSchedule")
       .find({ doctorId: schedule.doctorId, isActive: true })
       .toArray();
 
-    const availableSlots = schedules.map(s => `${s.dayOfWeek}: ${s.startTime} - ${s.endTime}`);
-    
-    await db.collection("Doctor").updateOne(
-      { _id: schedule.doctorId },
-      { $set: { availableSlots } }
+    const availableSlots = schedules.map(
+      (s) => `${s.dayOfWeek}: ${s.startTime} - ${s.endTime}`,
     );
 
-    res.status(200).json({ 
-      success: true, 
-      message: "Schedule deleted." 
+    await db
+      .collection("Doctor")
+      .updateOne({ _id: schedule.doctorId }, { $set: { availableSlots } });
+
+    res.status(200).json({
+      success: true,
+      message: "Schedule deleted.",
     });
   } catch (error) {
     console.error("Delete failed:", error);
-    res.status(500).json({ success: false, message: "Failed to delete schedule." });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to delete schedule." });
   }
 });
 
@@ -911,24 +1123,24 @@ router.delete("/schedule/:scheduleId", async (req, res) => {
 router.post("/prescriptions", async (req, res) => {
   try {
     const db = await connectToDatabase();
-    const { 
-      doctorId, 
+    const {
+      doctorId,
       doctorEmail,
       doctorName,
-      patientId, 
-      patientEmail, 
+      patientId,
+      patientEmail,
       patientName,
-      appointmentId, 
-      diagnosis, 
-      medications, 
+      appointmentId,
+      diagnosis,
+      medications,
       notes,
-      followUpDate
+      followUpDate,
     } = req.body;
 
     if (!doctorId || !patientEmail || !diagnosis) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Doctor ID, patient email, and diagnosis are required." 
+      return res.status(400).json({
+        success: false,
+        message: "Doctor ID, patient email, and diagnosis are required.",
       });
     }
 
@@ -946,7 +1158,7 @@ router.post("/prescriptions", async (req, res) => {
       followUpDate: followUpDate || null,
       status: "active",
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
 
     const result = await db.collection("Prescriptions").insertOne(prescription);
@@ -955,31 +1167,30 @@ router.post("/prescriptions", async (req, res) => {
     if (appointmentId) {
       await db.collection("Appointments").updateOne(
         { _id: new ObjectId(appointmentId) },
-        { 
-          $set: { 
-            appointmentStatus: "completed", 
+        {
+          $set: {
+            appointmentStatus: "completed",
             hasPrescription: true,
             prescriptionId: result.insertedId,
             completedAt: new Date(),
-            updatedAt: new Date()
-          } 
-        }
+            updatedAt: new Date(),
+          },
+        },
       );
     }
 
-    res.status(201).json({ 
-      success: true, 
+    res.status(201).json({
+      success: true,
       message: "Prescription created successfully!",
       prescriptionId: result.insertedId,
-      prescription
+      prescription,
     });
-
   } catch (error) {
     console.error("Create prescription error:", error);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       message: "Failed to create prescription.",
-      error: error.message 
+      error: error.message,
     });
   }
 });
@@ -993,34 +1204,34 @@ router.get("/prescriptions/list/:doctorEmail", async (req, res) => {
     const doctorEmail = req.params.doctorEmail.toLowerCase();
 
     // ✅ Verify doctor exists
-    const doctor = await db.collection("Doctor").findOne({ 
-      email: doctorEmail 
+    const doctor = await db.collection("Doctor").findOne({
+      email: doctorEmail,
     });
 
     if (!doctor) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Doctor not found." 
+      return res.status(404).json({
+        success: false,
+        message: "Doctor not found.",
       });
     }
 
     // ✅ Get all prescriptions for this doctor
-    const prescriptions = await db.collection("Prescriptions")
+    const prescriptions = await db
+      .collection("Prescriptions")
       .find({ doctorId: doctor._id })
       .sort({ createdAt: -1 })
       .toArray();
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       prescriptions: prescriptions || [],
-      total: prescriptions.length
+      total: prescriptions.length,
     });
-
   } catch (error) {
     console.error("Fetch prescriptions error:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to fetch prescriptions." 
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch prescriptions.",
     });
   }
 });
@@ -1034,26 +1245,25 @@ router.get("/prescription/:prescriptionId", async (req, res) => {
     const prescriptionId = req.params.prescriptionId;
 
     const prescription = await db.collection("Prescriptions").findOne({
-      _id: new ObjectId(prescriptionId)
+      _id: new ObjectId(prescriptionId),
     });
 
     if (!prescription) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Prescription not found." 
+      return res.status(404).json({
+        success: false,
+        message: "Prescription not found.",
       });
     }
 
-    res.status(200).json({ 
-      success: true, 
-      prescription 
+    res.status(200).json({
+      success: true,
+      prescription,
     });
-
   } catch (error) {
     console.error("Fetch prescription error:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to fetch prescription." 
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch prescription.",
     });
   }
 });
@@ -1075,33 +1285,31 @@ router.patch("/prescription/:prescriptionId", async (req, res) => {
     if (status !== undefined) updateData.status = status;
     updateData.updatedAt = new Date();
 
-    const result = await db.collection("Prescriptions").updateOne(
-      { _id: new ObjectId(prescriptionId) },
-      { $set: updateData }
-    );
+    const result = await db
+      .collection("Prescriptions")
+      .updateOne({ _id: new ObjectId(prescriptionId) }, { $set: updateData });
 
     if (result.matchedCount === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Prescription not found." 
+      return res.status(404).json({
+        success: false,
+        message: "Prescription not found.",
       });
     }
 
     const updatedPrescription = await db.collection("Prescriptions").findOne({
-      _id: new ObjectId(prescriptionId)
+      _id: new ObjectId(prescriptionId),
     });
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       message: "Prescription updated successfully!",
-      prescription: updatedPrescription
+      prescription: updatedPrescription,
     });
-
   } catch (error) {
     console.error("Update prescription error:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to update prescription." 
+    res.status(500).json({
+      success: false,
+      message: "Failed to update prescription.",
     });
   }
 });
@@ -1115,35 +1323,34 @@ router.delete("/prescription/:prescriptionId", async (req, res) => {
     const prescriptionId = req.params.prescriptionId;
 
     const result = await db.collection("Prescriptions").deleteOne({
-      _id: new ObjectId(prescriptionId)
+      _id: new ObjectId(prescriptionId),
     });
 
     if (result.deletedCount === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Prescription not found." 
+      return res.status(404).json({
+        success: false,
+        message: "Prescription not found.",
       });
     }
 
     // ✅ Remove prescription reference from appointment
     await db.collection("Appointments").updateOne(
       { prescriptionId: new ObjectId(prescriptionId) },
-      { 
+      {
         $unset: { prescriptionId: "", hasPrescription: "" },
-        $set: { updatedAt: new Date() }
-      }
+        $set: { updatedAt: new Date() },
+      },
     );
 
-    res.status(200).json({ 
-      success: true, 
-      message: "Prescription deleted successfully!" 
+    res.status(200).json({
+      success: true,
+      message: "Prescription deleted successfully!",
     });
-
   } catch (error) {
     console.error("Delete prescription error:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to delete prescription." 
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete prescription.",
     });
   }
 });
@@ -1156,26 +1363,24 @@ router.get("/patient-prescriptions/:patientEmail", async (req, res) => {
     const db = await connectToDatabase();
     const patientEmail = req.params.patientEmail.toLowerCase();
 
-    const prescriptions = await db.collection("Prescriptions")
+    const prescriptions = await db
+      .collection("Prescriptions")
       .find({ patientEmail: patientEmail })
       .sort({ createdAt: -1 })
       .toArray();
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       prescriptions: prescriptions || [],
-      total: prescriptions.length
+      total: prescriptions.length,
     });
-
   } catch (error) {
     console.error("Fetch patient prescriptions error:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to fetch prescriptions." 
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch prescriptions.",
     });
   }
 });
-
-
 
 module.exports = router;

@@ -7,12 +7,14 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ─── CORS CONFIGURATION ──────────────────────────────────────────────
-app.use(cors({
-  origin: process.env.CLIENT_URL || "*",
-  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-  credentials: true,
-  optionsSuccessStatus: 204
-}));
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || "*",
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    credentials: true,
+    optionsSuccessStatus: 204,
+  }),
+);
 
 // ─── ROOT ROUTE ──────────────────────────────────────────────────────
 app.get("/", (req, res) => {
@@ -27,8 +29,8 @@ app.get("/", (req, res) => {
       admin: "/api/admin",
       appointments: "/api/appointments",
       patients: "/api/patients",
-      users: "/api/users"
-    }
+      users: "/api/users",
+    },
   });
 });
 
@@ -37,19 +39,19 @@ app.get("/api/health", async (req, res) => {
   try {
     const db = await connectToDatabase();
     await db.command({ ping: 1 });
-    
+
     res.status(200).json({
       success: true,
       status: "healthy",
       message: "Server and database are running",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Health check failed:", error);
     res.status(500).json({
       success: false,
       status: "unhealthy",
-      message: "Database connection failed"
+      message: "Database connection failed",
     });
   }
 });
@@ -73,7 +75,7 @@ try {
   app.use("/api/appointments", appointmentRoutes);
   app.use("/api/patients", patientRoutes);
   app.use("/api/users", userRoutes);
-  
+
   console.log("Routes loaded successfully");
 } catch (error) {
   console.error("Route loading error:", error);
@@ -91,8 +93,8 @@ app.use((req, res) => {
       "/api/admin",
       "/api/appointments",
       "/api/patients",
-      "/api/users"
-    ]
+      "/api/users",
+    ],
   });
 });
 
@@ -102,7 +104,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({
     success: false,
     message: "Internal Server Error",
-    error: process.env.NODE_ENV === "development" ? err.message : undefined
+    error: process.env.NODE_ENV === "development" ? err.message : undefined,
   });
 });
 
@@ -113,7 +115,7 @@ let connectionPromise = null;
 async function ensureDbConnection() {
   if (dbConnected) return;
   if (connectionPromise) return connectionPromise;
-  
+
   connectionPromise = connectToDatabase()
     .then(() => {
       dbConnected = true;
@@ -126,7 +128,7 @@ async function ensureDbConnection() {
     .finally(() => {
       connectionPromise = null;
     });
-  
+
   return connectionPromise;
 }
 
@@ -157,7 +159,7 @@ module.exports = async (req, res) => {
     console.error("Vercel handler error:", error);
     res.status(500).json({
       success: false,
-      message: "Internal Server Error"
+      message: "Internal Server Error",
     });
   }
 };
