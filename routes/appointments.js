@@ -480,12 +480,10 @@ router.get("/pending/:doctorEmail", async (req, res) => {
     res.status(200).json({ success: true, appointments: pendingAppointments });
   } catch (error) {
     console.error("Failed to fetch pending appointments:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to fetch pending appointments.",
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch pending appointments.",
+    });
   }
 });
 

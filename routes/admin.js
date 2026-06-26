@@ -176,15 +176,13 @@ router.get("/users", async (req, res) => {
     const db = await connectToDatabase();
 
     // Auto-expire restrictions whose duration has passed
-    await db
-      .collection("user")
-      .updateMany(
-        { status: "restricted", restrictedUntil: { $lte: new Date() } },
-        {
-          $set: { status: "active" },
-          $unset: { restrictedUntil: "", restrictedAt: "" },
-        },
-      );
+    await db.collection("user").updateMany(
+      { status: "restricted", restrictedUntil: { $lte: new Date() } },
+      {
+        $set: { status: "active" },
+        $unset: { restrictedUntil: "", restrictedAt: "" },
+      },
+    );
 
     const users = await db
       .collection("user")
@@ -270,18 +268,16 @@ router.patch("/users/restrict/:id", async (req, res) => {
 
     const restrictedUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
-    const result = await db
-      .collection("user")
-      .updateOne(
-        { _id: oid },
-        {
-          $set: {
-            status: "restricted",
-            restrictedUntil,
-            restrictedAt: new Date(),
-          },
+    const result = await db.collection("user").updateOne(
+      { _id: oid },
+      {
+        $set: {
+          status: "restricted",
+          restrictedUntil,
+          restrictedAt: new Date(),
         },
-      );
+      },
+    );
     if (result.matchedCount === 0)
       return res
         .status(404)
@@ -307,15 +303,13 @@ router.patch("/users/ban/:id", async (req, res) => {
         .status(400)
         .json({ success: false, message: "Invalid user ID." });
 
-    const result = await db
-      .collection("user")
-      .updateOne(
-        { _id: oid },
-        {
-          $set: { status: "banned", bannedAt: new Date() },
-          $unset: { restrictedUntil: "", restrictedAt: "" },
-        },
-      );
+    const result = await db.collection("user").updateOne(
+      { _id: oid },
+      {
+        $set: { status: "banned", bannedAt: new Date() },
+        $unset: { restrictedUntil: "", restrictedAt: "" },
+      },
+    );
     if (result.matchedCount === 0)
       return res
         .status(404)
@@ -337,15 +331,13 @@ router.patch("/users/restore/:id", async (req, res) => {
         .status(400)
         .json({ success: false, message: "Invalid user ID." });
 
-    const result = await db
-      .collection("user")
-      .updateOne(
-        { _id: oid },
-        {
-          $set: { status: "active" },
-          $unset: { restrictedUntil: "", restrictedAt: "", bannedAt: "" },
-        },
-      );
+    const result = await db.collection("user").updateOne(
+      { _id: oid },
+      {
+        $set: { status: "active" },
+        $unset: { restrictedUntil: "", restrictedAt: "", bannedAt: "" },
+      },
+    );
     if (result.matchedCount === 0)
       return res
         .status(404)
@@ -717,12 +709,10 @@ router.delete("/doctors/reject/:id", async (req, res) => {
     const result = await db
       .collection("DoctorApplications")
       .deleteOne({ _id: oid });
-    res
-      .status(200)
-      .json({
-        success: result.deletedCount === 1,
-        message: "Application rejected.",
-      });
+    res.status(200).json({
+      success: result.deletedCount === 1,
+      message: "Application rejected.",
+    });
   } catch (error) {
     res
       .status(500)

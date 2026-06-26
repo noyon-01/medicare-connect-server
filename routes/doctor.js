@@ -321,18 +321,14 @@ router.get("/dashboard-stats/:email", async (req, res) => {
       db
         .collection("Appointments")
         .countDocuments({ doctorId: doctorOid, appointmentStatus: "pending" }),
-      db
-        .collection("Appointments")
-        .countDocuments({
-          doctorId: doctorOid,
-          appointmentStatus: "confirmed",
-        }),
-      db
-        .collection("Appointments")
-        .countDocuments({
-          doctorId: doctorOid,
-          appointmentStatus: "completed",
-        }),
+      db.collection("Appointments").countDocuments({
+        doctorId: doctorOid,
+        appointmentStatus: "confirmed",
+      }),
+      db.collection("Appointments").countDocuments({
+        doctorId: doctorOid,
+        appointmentStatus: "completed",
+      }),
       db
         .collection("Appointments")
         .countDocuments({ doctorId: doctorOid, appointmentDate: today }),
@@ -522,12 +518,10 @@ router.post("/prescriptions", async (req, res) => {
     } = req.body;
 
     if (!doctorId || !appointmentId || !diagnosis)
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "doctorId, appointmentId and diagnosis are required.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "doctorId, appointmentId and diagnosis are required.",
+      });
 
     const result = await db.collection("Prescriptions").insertOne({
       doctorId: new ObjectId(doctorId),
@@ -539,29 +533,25 @@ router.post("/prescriptions", async (req, res) => {
       createdAt: new Date(),
     });
 
-    await db
-      .collection("Appointments")
-      .updateOne(
-        { _id: new ObjectId(appointmentId) },
-        {
-          $set: {
-            appointmentStatus: "completed",
-            completedAt: new Date(),
-            updatedAt: new Date(),
-          },
+    await db.collection("Appointments").updateOne(
+      { _id: new ObjectId(appointmentId) },
+      {
+        $set: {
+          appointmentStatus: "completed",
+          completedAt: new Date(),
+          updatedAt: new Date(),
         },
-      );
+      },
+    );
 
     res.status(201).json({ success: true, prescriptionId: result.insertedId });
   } catch (error) {
     console.error("Prescription save failed:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to save prescription.",
-        error: error.message,
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to save prescription.",
+      error: error.message,
+    });
   }
 });
 
@@ -621,12 +611,10 @@ router.post("/profile", async (req, res) => {
       .collection("DoctorApplications")
       .findOne({ email: normalizedEmail });
     if (existingApp && existingApp.verificationStatus === "pending")
-      return res
-        .status(409)
-        .json({
-          success: false,
-          message: "Pending application already under review.",
-        });
+      return res.status(409).json({
+        success: false,
+        message: "Pending application already under review.",
+      });
 
     const processedSlots = Array.isArray(availableSlots)
       ? availableSlots
@@ -658,21 +646,17 @@ router.post("/profile", async (req, res) => {
       { upsert: true },
     );
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "Profile submitted for admin review.",
-        result,
-      });
+    res.status(200).json({
+      success: true,
+      message: "Profile submitted for admin review.",
+      result,
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Submission failed.",
-        error: error.message,
-      });
+    res.status(500).json({
+      success: false,
+      message: "Submission failed.",
+      error: error.message,
+    });
   }
 });
 
@@ -694,13 +678,11 @@ router.get("/profile/:email", async (req, res) => {
       .collection("DoctorApplications")
       .findOne({ email: targetEmail });
     if (application)
-      return res
-        .status(200)
-        .json({
-          success: true,
-          profile: application,
-          status: application.verificationStatus || "pending",
-        });
+      return res.status(200).json({
+        success: true,
+        profile: application,
+        status: application.verificationStatus || "pending",
+      });
     return res
       .status(404)
       .json({ success: false, message: "No profile registered yet." });

@@ -20,12 +20,10 @@ router.get("/upcoming/:patientEmail", async (req, res) => {
 
     res.status(200).json({ success: true, appointments });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to fetch upcoming appointments.",
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch upcoming appointments.",
+    });
   }
 });
 
@@ -44,12 +42,10 @@ router.get("/history/:patientEmail", async (req, res) => {
 
     res.status(200).json({ success: true, appointments });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to fetch appointment history.",
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch appointment history.",
+    });
   }
 });
 
@@ -174,12 +170,10 @@ router.post("/reviews", async (req, res) => {
     } = req.body;
 
     if (!doctorId || !rating || !reviewText) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Doctor, rating, and review text are required.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Doctor, rating, and review text are required.",
+      });
     }
 
     // ✅ Get doctor name from Doctor collection
@@ -254,13 +248,11 @@ router.post("/reviews", async (req, res) => {
     });
   } catch (error) {
     console.error("Add review error:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to add review.",
-        error: error.message,
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to add review.",
+      error: error.message,
+    });
   }
 });
 
@@ -422,12 +414,10 @@ router.patch("/reviews/:reviewId", async (req, res) => {
     const { rating, reviewText } = req.body;
 
     if (!rating || !reviewText) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Rating and review text are required.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Rating and review text are required.",
+      });
     }
 
     const result = await db.collection("Reviews").updateOne(
@@ -588,12 +578,10 @@ router.patch("/:appointmentId/reschedule", async (req, res) => {
         .json({ success: false, message: "Appointment not found." });
     }
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "Appointment rescheduled successfully.",
-      });
+    res.status(200).json({
+      success: true,
+      message: "Appointment rescheduled successfully.",
+    });
   } catch (error) {
     res
       .status(500)
