@@ -3,8 +3,7 @@
 Backend API service for MediCare Connect Healthcare Management Platform.
 
 ## 🌐 Live API
-
-
+https://medicare-connect-client-one.vercel.app
 
 ---
 
@@ -169,19 +168,6 @@ Server:
 
 ## ⚙️ Installation
 
-```bash
-git clone https://github.com/joygoswaminiloy2023-droid/MediCare_Connect_server.git
-
-cd MediCare_Connect_server
-
-npm install
-
-npm run dev
-```
-
----
-
-
 ---
 
 ## 🛡️ Security Features
@@ -197,4 +183,4 @@ npm run dev
 
 ## 👨‍💻 Developed By
 
-Joy Goswami Niloy
+Shahadat Hosen Noyon.
