@@ -4,17 +4,17 @@ Backend API service for MediCare Connect Healthcare Management Platform.
 
 ## 🌐 Live API
 
-(Add your Render/Railway/VPS API URL here)
+
 
 ---
 
 ## 🔗 Repositories
 
 Client:
-https://github.com/joygoswaminiloy2023-droid/MediCare_Connect
+
 
 Server:
-https://github.com/joygoswaminiloy2023-droid/MediCare_Connect_server
+
 
 ---
 
